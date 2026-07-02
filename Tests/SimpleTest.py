@@ -904,59 +904,59 @@ class Test(AbstractTest):
         self.assertEqual(
             ReturnValue.OK,
             Solution.customer_rated_dish(5000, 5001, 5),
-            "Should return OK when a valid customer rates a valid dish"
+            "Should return OK when a valid customer rates a valid dish",
         )
 
         self.assertEqual(
             ReturnValue.OK,
             Solution.customer_rated_dish(5000, 5002, 4),
-            "Should return OK when the SAME customer rates a DIFFERENT dish"
+            "Should return OK when the SAME customer rates a DIFFERENT dish",
         )
 
         # --- 2. ALREADY EXISTS (Rating the same dish twice) ---
         self.assertEqual(
             ReturnValue.ALREADY_EXISTS,
             Solution.customer_rated_dish(5000, 5001, 3),
-            "Should return ALREADY_EXISTS if the customer tries to rate the same dish again"
+            "Should return ALREADY_EXISTS if the customer tries to rate the same dish again",
         )
 
         # --- 3. BAD PARAMS: INVALID RATINGS ---
         self.assertEqual(
             ReturnValue.BAD_PARAMS,
             Solution.customer_rated_dish(5000, 5001, 6),
-            "Should return BAD_PARAMS for a rating > 5"
+            "Should return BAD_PARAMS for a rating > 5",
         )
 
         self.assertEqual(
             ReturnValue.BAD_PARAMS,
             Solution.customer_rated_dish(5000, 5001, 0),
-            "Should return BAD_PARAMS for a rating < 1"
+            "Should return BAD_PARAMS for a rating < 1",
         )
 
         self.assertEqual(
             ReturnValue.BAD_PARAMS,
             Solution.customer_rated_dish(5000, 5001, -2),
-            "Should return BAD_PARAMS for a negative rating"
+            "Should return BAD_PARAMS for a negative rating",
         )
 
         # --- 4. NOT EXISTS: MISSING IDS ---
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.customer_rated_dish(9999, 5001, 5),
-            "Should return NOT_EXISTS for a non-existent customer_id"
+            "Should return NOT_EXISTS for a non-existent customer_id",
         )
 
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.customer_rated_dish(5000, 9999, 5),
-            "Should return NOT_EXISTS for a non-existent dish_id"
+            "Should return NOT_EXISTS for a non-existent dish_id",
         )
 
         # --- 5. NOT EXISTS: ILLEGAL IDS ---
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.customer_rated_dish(-5, 5001, 5),
-            "Should return NOT_EXISTS for an illegal negative customer_id"
+            "Should return NOT_EXISTS for an illegal negative customer_id",
         )
 
     def test_customer_deleted_rating_on_dish_edge_cases(self) -> None:
@@ -976,42 +976,99 @@ class Test(AbstractTest):
         self.assertEqual(
             ReturnValue.OK,
             Solution.customer_deleted_rating_on_dish(6000, 6001),
-            "Should return OK when successfully deleting an existing rating"
+            "Should return OK when successfully deleting an existing rating",
         )
 
         # --- 2. DOUBLE DELETION (Rating no longer exists) ---
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.customer_deleted_rating_on_dish(6000, 6001),
-            "Should return NOT_EXISTS if trying to delete a rating that was already removed"
+            "Should return NOT_EXISTS if trying to delete a rating that was already removed",
         )
 
         # --- 3. NOT EXISTS: NEVER RATED IN THE FIRST PLACE ---
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.customer_deleted_rating_on_dish(6000, 6002),
-            "Should return NOT_EXISTS if the customer never rated this dish"
+            "Should return NOT_EXISTS if the customer never rated this dish",
         )
 
         # --- 4. NOT EXISTS: MISSING IDS ---
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.customer_deleted_rating_on_dish(9999, 6001),
-            "Should return NOT_EXISTS for non-existent customer_id"
+            "Should return NOT_EXISTS for non-existent customer_id",
         )
 
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.customer_deleted_rating_on_dish(6000, 9999),
-            "Should return NOT_EXISTS for non-existent dish_id"
+            "Should return NOT_EXISTS for non-existent dish_id",
         )
 
         # --- 5. NOT EXISTS: ILLEGAL IDS ---
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.customer_deleted_rating_on_dish(-5, 6001),
-            "Should return NOT_EXISTS for illegal negative customer_id"
+            "Should return NOT_EXISTS for illegal negative customer_id",
         )
+
+    def test_get_all_customer_ratings_edge_cases(self) -> None:
+        # --- SETUP: Create Customer, Dishes, and Ratings ---
+        c_reviewer = Customer(7000, "Foodie Tester", 28, "0507778888")
+        Solution.add_customer(c_reviewer)
+
+        # Create dishes out of order
+        d_z = Dish(7003, "Zucchini", 15.0, True)
+        d_x = Dish(7001, "Xtra Burger", 30.0, True)
+        d_y = Dish(7002, "Yam Soup", 10.0, True)
+        Solution.add_dish(d_z)
+        Solution.add_dish(d_x)
+        Solution.add_dish(d_y)
+
+        # Add ratings out of order
+        Solution.customer_rated_dish(7000, 7003, 4)
+        Solution.customer_rated_dish(7000, 7001, 5)
+        Solution.customer_rated_dish(7000, 7002, 3)
+
+        # --- 1. SUCCESSFUL RETRIEVAL & SORTING (Happy Path) ---
+        ratings = Solution.get_all_customer_ratings(7000)
+
+        self.assertEqual(3, len(ratings), "Should return exactly 3 rating tuples")
+
+        # Verify the ASCENDING sort order and tuple structure: (dish_id, rating)
+        self.assertEqual(
+            (7001, 5), ratings[0], "First tuple should be dish 7001 with rating 5"
+        )
+        self.assertEqual(
+            (7002, 3), ratings[1], "Second tuple should be dish 7002 with rating 3"
+        )
+        self.assertEqual(
+            (7003, 4), ratings[2], "Third tuple should be dish 7003 with rating 4"
+        )
+
+        # --- 2. EMPTY RATINGS ---
+        c_quiet = Customer(7005, "Quiet Diner", 40, "0509991111")
+        Solution.add_customer(c_quiet)
+
+        res_empty = Solution.get_all_customer_ratings(7005)
+        self.assertEqual(
+            [], res_empty, "Should return an empty list for a customer with no ratings"
+        )
+
+        # --- 3. NOT EXISTS: MISSING / ILLEGAL CUSTOMER ID ---
+        res_missing = Solution.get_all_customer_ratings(9999)
+        self.assertEqual(
+            [], res_missing, "Should return an empty list for a non-existent customer"
+        )
+
+        res_illegal = Solution.get_all_customer_ratings(-5)
+        self.assertEqual(
+            [],
+            res_illegal,
+            "Should return an empty list for an illegal negative customer ID",
+        )
+
 
 # *** DO NOT RUN EACH TEST MANUALLY ***
 if __name__ == "__main__":

@@ -722,8 +722,30 @@ def customer_deleted_rating_on_dish(cust_id: int, dish_id: int) -> ReturnValue:
 
 
 def get_all_customer_ratings(cust_id: int) -> List[Tuple[int, int]]:
-    # TODO: implement
-    pass
+    conn = None
+    ratings: List[Tuple[int, int]] = []
+
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL(
+            "SELECT dish_id, rating FROM DishRatings WHERE cust_id = {c_id} ORDER BY dish_id ASC"
+        ).format(c_id=sql.Literal(cust_id))
+
+        rows_effected, result = conn.execute(query)
+
+        if rows_effected > 0:
+            for row in result:
+                ratings.append((row["dish_id"], row["rating"]))
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+    except Exception as e:
+        print(e)
+    finally:
+        if conn is not None:
+            conn.close()
+        return ratings
 
 
 # ---------------------------------- BASIC API: ----------------------------------
