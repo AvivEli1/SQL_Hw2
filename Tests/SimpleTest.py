@@ -108,6 +108,37 @@ class Test(AbstractTest):
             ReturnValue.BAD_PARAMS, Solution.add_customer(c_none_age), "Age is None"
         )
 
+    def test_get_customer_edge_cases(self) -> None:
+        # --- 1. GET EXISTING CUSTOMER (Happy Path) ---
+        c_valid = Customer(200, "Jane Doe", 30, "0521234567")
+        Solution.add_customer(c_valid)
+
+        # Fetch the customer we just added
+        res_customer = Solution.get_customer(200)
+
+        self.assertEqual(
+            c_valid, res_customer, "Should return the exact matched customer object"
+        )
+
+        # --- 2. GET NON-EXISTENT CUSTOMER ---
+        # ID 9999 hasn't been added
+        res_missing = Solution.get_customer(9999)
+        self.assertEqual(
+            BadCustomer(),
+            res_missing,
+            "Should return BadCustomer when ID is not found in DB",
+        )
+
+        # --- 3. GET WITH INVALID ID BOUNDARIES ---
+        # The schema requires cust_id > 0
+        res_zero = Solution.get_customer(0)
+        self.assertEqual(BadCustomer(), res_zero, "Should return BadCustomer for ID 0")
+
+        res_negative = Solution.get_customer(-10)
+        self.assertEqual(
+            BadCustomer(), res_negative, "Should return BadCustomer for negative ID"
+        )
+
 
 # *** DO NOT RUN EACH TEST MANUALLY ***
 if __name__ == "__main__":

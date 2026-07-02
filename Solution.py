@@ -120,8 +120,46 @@ def add_customer(customer: Customer) -> ReturnValue:
 
 
 def get_customer(customer_id: int) -> Customer:
-    # TODO: implement
-    pass
+    conn = None
+    customer = BadCustomer()
+
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL("SELECT * FROM Customers WHERE cust_id={id}").format(
+            id=sql.Literal(customer_id)
+        )
+
+        # Execute the query and unpack the rows affected and the ResultSet
+        rows_effected, result = conn.execute(query)
+
+        # Check if the result set contains any rows
+        if result.size() > 0:
+            row = result[0]
+
+            customer = Customer(
+                cust_id=row["cust_id"],
+                full_name=row["full_name"],
+                age=row["age"],
+                phone=row["phone"],
+            )
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+    except DatabaseException.NOT_NULL_VIOLATION as e:
+        print(e)
+    except DatabaseException.CHECK_VIOLATION as e:
+        print(e)
+    except DatabaseException.UNIQUE_VIOLATION as e:
+        print(e)
+    except DatabaseException.FOREIGN_KEY_VIOLATION as e:
+        print(e)
+    except Exception as e:
+        print(e)
+    finally:
+        if conn is not None:
+            conn.close()
+        return customer
 
 
 def delete_customer(customer_id: int) -> ReturnValue:
