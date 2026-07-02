@@ -19,7 +19,6 @@ def create_tables() -> None:
     try:
         conn = Connector.DBConnector()
 
-        # Create Customers Table
         query_customers = """
                           CREATE TABLE Customers
                           (
@@ -30,7 +29,6 @@ def create_tables() -> None:
                           ); \
                           """
 
-        # Create Orders Table
         query_orders = """
                        CREATE TABLE Orders
                        (
@@ -41,10 +39,19 @@ def create_tables() -> None:
                            tip DECIMAL NOT NULL CHECK (tip >= 0)
                        ); \
                        """
+        query_dishes = """
+                       CREATE TABLE Dishes
+                       (
+                           dish_id INTEGER PRIMARY KEY CHECK (dish_id > 0),
+                           name TEXT NOT NULL CHECK (LENGTH(name) >= 4),
+                           price DECIMAL NOT NULL CHECK (price > 0),
+                           is_active BOOLEAN NOT NULL
+                       ); \
+                       """
 
-        # Execute both queries
         conn.execute(query_customers)
         conn.execute(query_orders)
+        conn.execute(query_dishes)
 
     except Exception as e:
         print(e)
@@ -63,14 +70,11 @@ def drop_tables() -> None:
     try:
         conn = Connector.DBConnector()
 
-        # Add all the tables your assignment requires here.
-        # IF EXISTS prevents errors if the table was already dropped.
-        # CASCADE forces the database to also drop any foreign key constraints tied to these tables.
-        query = "DROP TABLE IF EXISTS Customers, Orders CASCADE;"
+        query = "DROP TABLE IF EXISTS Customers, Orders, Dishes CASCADE;"
         conn.execute(query)
 
     except Exception as e:
-        print(f"Error dropping tables: {e}")
+        print(e)
 
     finally:
         if conn is not None:
@@ -295,18 +299,117 @@ def delete_order(order_id: int) -> ReturnValue:
 
 
 def add_dish(dish: Dish) -> ReturnValue:
-    # TODO: implement
-    pass
+    if dish is None:
+        return ReturnValue.BAD_PARAMS
+
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL(
+            "INSERT INTO Dishes (dish_id, name, price, is_active) VALUES ({id}, {name}, {price}, {is_active})"
+        ).format(
+            id=sql.Literal(dish.get_dish_id()),
+            name=sql.Literal(dish.get_name()),
+            price=sql.Literal(dish.get_price()),
+            is_active=sql.Literal(dish.get_is_active()),
+        )
+
+        conn.execute(query)
+        return ReturnValue.OK
+
+    except DatabaseException.UNIQUE_VIOLATION as e:
+        print(e)
+        return ReturnValue.ALREADY_EXISTS
+
+    except (
+        DatabaseException.NOT_NULL_VIOLATION,
+        DatabaseException.CHECK_VIOLATION,
+        DatabaseException.FOREIGN_KEY_VIOLATION,
+    ) as e:
+        print(e)
+        return ReturnValue.BAD_PARAMS
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    except Exception as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_dish(dish_id: int) -> Dish:
-    # TODO: implement
-    pass
+    conn = None
+    dish = BadDish()
+
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL("SELECT * FROM Dishes WHERE dish_id={id}").format(
+            id=sql.Literal(dish_id)
+        )
+
+        rows_effected, result = conn.execute(query)
+
+        if rows_effected > 0:
+            row = result[0]
+
+            dish = Dish(
+                dish_id=row["dish_id"],
+                name=row["name"],
+                price=row["price"],
+                is_active=row["is_active"],
+            )
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+    except Exception as e:
+        print(e)
+    finally:
+        if conn is not None:
+            conn.close()
+        return dish
 
 
 def update_dish_price(dish_id: int, price: float) -> ReturnValue:
-    # TODO: implement
-    pass
+    if price is None or price <= 0:
+        return ReturnValue.BAD_PARAMS
+
+    conn = None
+
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL(
+            "UPDATE Dishes SET price={price} WHERE dish_id={id} AND is_active=TRUE"
+        ).format(price=sql.Literal(price), id=sql.Literal(dish_id))
+
+        rows_effected, _ = conn.execute(query)
+
+        if rows_effected > 0:
+            return ReturnValue.OK
+        else:
+            return ReturnValue.NOT_EXISTS
+
+    except (DatabaseException.NOT_NULL_VIOLATION, DatabaseException.CHECK_VIOLATION):
+        return ReturnValue.BAD_PARAMS
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    except Exception as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def update_dish_active_status(dish_id: int, is_active: bool) -> ReturnValue:

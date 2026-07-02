@@ -4,6 +4,7 @@ from Utility.ReturnValue import ReturnValue
 from Tests.AbstractTest import AbstractTest
 from Business.Customer import Customer, BadCustomer
 from Business.Order import Order, BadOrder
+from Business.Dish import Dish, BadDish
 from datetime import datetime
 
 """
@@ -339,21 +340,23 @@ class Test(AbstractTest):
 
     def test_delete_order_edge_cases(self) -> None:
         # --- 1. SUCCESSFUL DELETION (Happy Path) ---
-        o_to_delete = Order(300, datetime(2023, 12, 1, 10, 0, 0), 12.0, "Delete St, Haifa", 5.0)
+        o_to_delete = Order(
+            300, datetime(2023, 12, 1, 10, 0, 0), 12.0, "Delete St, Haifa", 5.0
+        )
         Solution.add_order(o_to_delete)
 
         # Delete the order
         self.assertEqual(
             ReturnValue.OK,
             Solution.delete_order(300),
-            "Should return OK when an existing order is deleted"
+            "Should return OK when an existing order is deleted",
         )
 
         # Verify it is actually gone using your get_order function
         self.assertEqual(
             BadOrder(),
             Solution.get_order(300),
-            "Deleted order should no longer be retrievable (should return BadOrder)"
+            "Deleted order should no longer be retrievable (should return BadOrder)",
         )
 
         # --- 2. DELETING NON-EXISTENT ORDER ---
@@ -361,7 +364,7 @@ class Test(AbstractTest):
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.delete_order(9999),
-            "Should return NOT_EXISTS for an ID that isn't in the database"
+            "Should return NOT_EXISTS for an ID that isn't in the database",
         )
 
         # --- 3. ILLEGAL IDs ---
@@ -369,30 +372,188 @@ class Test(AbstractTest):
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.delete_order(0),
-            "Should return NOT_EXISTS for ID 0"
+            "Should return NOT_EXISTS for ID 0",
         )
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.delete_order(-20),
-            "Should return NOT_EXISTS for negative ID"
+            "Should return NOT_EXISTS for negative ID",
         )
 
         # --- 4. DOUBLE DELETE ---
-        o_double_delete = Order(301, datetime(2023, 12, 1, 10, 0, 0), 12.0, "Delete St, Haifa", 5.0)
+        o_double_delete = Order(
+            301, datetime(2023, 12, 1, 10, 0, 0), 12.0, "Delete St, Haifa", 5.0
+        )
         Solution.add_order(o_double_delete)
 
         # First delete works
         self.assertEqual(
-            ReturnValue.OK,
-            Solution.delete_order(301),
-            "First deletion should succeed"
+            ReturnValue.OK, Solution.delete_order(301), "First deletion should succeed"
         )
 
         # Second delete should fail because it is already gone
         self.assertEqual(
             ReturnValue.NOT_EXISTS,
             Solution.delete_order(301),
-            "Deleting the same order twice should return NOT_EXISTS the second time"
+            "Deleting the same order twice should return NOT_EXISTS the second time",
+        )
+
+    def test_add_dish_edge_cases(self) -> None:
+        # --- 1. ADD DISH: HAPPY PATH ---
+        d_valid = Dish(500, "Spaghetti", 45.5, True)
+        self.assertEqual(
+            ReturnValue.OK, Solution.add_dish(d_valid), "Valid dish should return OK"
+        )
+
+        # --- 2. ADD DISH: ALREADY EXISTS ---
+        # Same ID (500), completely different dish details
+        d_duplicate = Dish(500, "Pizza Margherita", 50.0, False)
+        self.assertEqual(
+            ReturnValue.ALREADY_EXISTS,
+            Solution.add_dish(d_duplicate),
+            "Duplicate dish_id should return ALREADY_EXISTS",
+        )
+
+        # --- 3. BAD PARAMS: ID CONSTRAINTS (Must be > 0) ---
+        d_id_zero = Dish(0, "Valid Name", 30.0, True)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS, Solution.add_dish(d_id_zero), "ID 0 is illegal"
+        )
+
+        d_id_negative = Dish(-10, "Valid Name", 30.0, True)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_dish(d_id_negative),
+            "Negative ID is illegal",
+        )
+
+        # --- 4. BAD PARAMS: PRICE CONSTRAINTS (Must be > 0) ---
+        # Note: Unlike delivery fee, price cannot be 0.
+        d_price_zero = Dish(501, "Valid Name", 0.0, True)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_dish(d_price_zero),
+            "Price of 0 is illegal (must be strictly > 0)",
+        )
+
+        d_price_negative = Dish(502, "Valid Name", -15.0, True)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_dish(d_price_negative),
+            "Negative price is illegal",
+        )
+
+        # --- 5. BAD PARAMS: NAME CONSTRAINTS (Length >= 4) ---
+        d_name_short = Dish(503, "Pie", 20.0, True)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_dish(d_name_short),
+            "Name with 3 characters is too short",
+        )
+
+        d_name_empty = Dish(504, "", 20.0, True)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_dish(d_name_empty),
+            "Empty name is illegal",
+        )
+
+        # Exactly 4 characters should successfully pass!
+        d_name_exact = Dish(505, "Soup", 15.0, True)
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.add_dish(d_name_exact),
+            "Name with exactly 4 characters should be OK",
+        )
+
+        # --- 6. BAD PARAMS: NULL VALUES ---
+        d_null_name = Dish(506, None, 20.0, True)
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.add_dish(d_null_name),
+            "Name cannot be None",
+        )
+
+    def test_get_dish_edge_cases(self) -> None:
+        # --- 1. GET EXISTING DISH (Happy Path) ---
+        d_to_get = Dish(600, "Cheeseburger", 55.0, True)
+        Solution.add_dish(d_to_get)
+
+        res_dish = Solution.get_dish(600)
+
+        # This triggers the __eq__ method you wrote in Dish.py!
+        self.assertEqual(
+            d_to_get, res_dish, "Should return the exact matched dish object"
+        )
+
+        # --- 2. GET NON-EXISTENT DISH ---
+        res_missing = Solution.get_dish(9999)
+        self.assertEqual(
+            BadDish(), res_missing, "Should return BadDish when ID is not found in DB"
+        )
+
+        # --- 3. GET WITH INVALID ID BOUNDARIES ---
+        res_zero = Solution.get_dish(0)
+        self.assertEqual(BadDish(), res_zero, "Should return BadDish for ID 0")
+
+        res_negative = Solution.get_dish(-15)
+        self.assertEqual(
+            BadDish(), res_negative, "Should return BadDish for negative ID"
+        )
+
+    def test_update_dish_price_edge_cases(self) -> None:
+        # Setup: Create one active dish and one inactive dish
+        d_active = Dish(700, "Active Salad", 25.0, True)
+        d_inactive = Dish(701, "Old Soup", 15.0, False)
+        Solution.add_dish(d_active)
+        Solution.add_dish(d_inactive)
+
+        # --- 1. SUCCESSFUL UPDATE (Happy Path) ---
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.update_dish_price(700, 28.5),
+            "Should return OK when an active dish price is updated"
+        )
+
+        # Verify the price actually changed in the database
+        res_updated_dish = Solution.get_dish(700)
+        self.assertEqual(
+            28.5,
+            res_updated_dish.get_price(),
+            "The price should be updated to 28.5 in the database"
+        )
+
+        # --- 2. UPDATE INACTIVE DISH ---
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.update_dish_price(701, 20.0),
+            "Should return NOT_EXISTS if trying to update an inactive dish"
+        )
+
+        # --- 3. UPDATE NON-EXISTENT / ILLEGAL ID ---
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.update_dish_price(9999, 10.0),
+            "Should return NOT_EXISTS for an ID that isn't in the database"
+        )
+
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.update_dish_price(-5, 10.0),
+            "Should return NOT_EXISTS for illegal negative ID"
+        )
+
+        # --- 4. BAD PARAMS: ILLEGAL PRICES ---
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.update_dish_price(700, -5.0),
+            "Negative price should return BAD_PARAMS"
+        )
+
+        self.assertEqual(
+            ReturnValue.BAD_PARAMS,
+            Solution.update_dish_price(700, 0.0),
+            "Price of 0 should return BAD_PARAMS (Must be strictly > 0)"
         )
 
 # *** DO NOT RUN EACH TEST MANUALLY ***
