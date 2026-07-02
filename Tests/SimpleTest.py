@@ -139,6 +139,64 @@ class Test(AbstractTest):
             BadCustomer(), res_negative, "Should return BadCustomer for negative ID"
         )
 
+    def test_delete_customer_edge_cases(self) -> None:
+        # --- 1. SUCCESSFUL DELETION (Happy Path) ---
+        c_to_delete = Customer(400, "Mark Delete", 55, "0541112222")
+        Solution.add_customer(c_to_delete)
+
+        # Delete the customer
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.delete_customer(400),
+            "Should return OK when an existing customer is deleted",
+        )
+
+        # Verify they are actually gone using your get_customer function
+        self.assertEqual(
+            BadCustomer(),
+            Solution.get_customer(400),
+            "Deleted customer should no longer be retrievable (should return BadCustomer)",
+        )
+
+        # --- 2. DELETING NON-EXISTENT CUSTOMER ---
+        # ID 9999 was never added
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.delete_customer(9999),
+            "Should return NOT_EXISTS for an ID that isn't in the database",
+        )
+
+        # --- 3. ILLEGAL IDs ---
+        # 0 and negative numbers are illegal per your schema, so they definitely don't exist
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.delete_customer(0),
+            "Should return NOT_EXISTS for ID 0",
+        )
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.delete_customer(-5),
+            "Should return NOT_EXISTS for negative ID",
+        )
+
+        # --- 4. DOUBLE DELETE ---
+        c_double_delete = Customer(401, "Erase Me", 22, "0505554444")
+        Solution.add_customer(c_double_delete)
+
+        # First delete works
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.delete_customer(401),
+            "First deletion should succeed",
+        )
+
+        # Second delete should fail because they are already gone
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.delete_customer(401),
+            "Deleting the same customer twice should return NOT_EXISTS the second time",
+        )
+
 
 # *** DO NOT RUN EACH TEST MANUALLY ***
 if __name__ == "__main__":

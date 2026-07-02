@@ -163,8 +163,36 @@ def get_customer(customer_id: int) -> Customer:
 
 
 def delete_customer(customer_id: int) -> ReturnValue:
-    # TODO: implement
-    pass
+    conn = None
+    result = ReturnValue.ERROR
+
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL("DELETE FROM Customers WHERE cust_id={id}").format(
+            id=sql.Literal(customer_id)
+        )
+
+        # Execute the query and capture how many rows were deleted
+        rows_effected, _ = conn.execute(query)
+
+        # If rows_effected is > 0, the customer existed and was deleted
+        if rows_effected > 0:
+            result = ReturnValue.OK
+        else:
+            # If 0 rows were affected, the ID either doesn't exist or is illegal (like -5)
+            result = ReturnValue.NOT_EXISTS
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+        result = ReturnValue.ERROR
+    except Exception as e:
+        print(e)
+        result = ReturnValue.ERROR
+    finally:
+        if conn is not None:
+            conn.close()
+        return result
 
 
 def add_order(order: Order) -> ReturnValue:
