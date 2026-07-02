@@ -677,6 +677,47 @@ class Test(AbstractTest):
             "Should return NOT_EXISTS for illegal order_id of 0",
         )
 
+    def test_get_customer_that_placed_order_edge_cases(self) -> None:
+        # --- SETUP: Create customer, order, and link them ---
+        c_buyer = Customer(1000, "View Tester", 22, "0509998888")
+        o_purchased = Order(1001, datetime(2023, 5, 5, 12, 0, 0), 10.0, "View St", 5.0)
+
+        Solution.add_customer(c_buyer)
+        Solution.add_order(o_purchased)
+        Solution.customer_placed_order(1000, 1001)
+
+        # --- 1. SUCCESSFUL RETRIEVAL (Happy Path) ---
+        res_customer = Solution.get_customer_that_placed_order(1001)
+
+        self.assertEqual(
+            c_buyer,
+            res_customer,
+            "Should use the view to return the exact customer who placed the order"
+        )
+
+        # --- 2. ORDER EXISTS, BUT NOT LINKED TO ANY CUSTOMER ---
+        o_unlinked = Order(1002, datetime(2023, 5, 5, 12, 0, 0), 10.0, "Ghost St", 5.0)
+        Solution.add_order(o_unlinked)
+
+        res_ghost_customer = Solution.get_customer_that_placed_order(1002)
+        self.assertEqual(
+            BadCustomer(),
+            res_ghost_customer,
+            "Should return BadCustomer if the order exists but isn't linked to anyone"
+        )
+
+        # --- 3. ORDER DOES NOT EXIST / ILLEGAL ID ---
+        self.assertEqual(
+            BadCustomer(),
+            Solution.get_customer_that_placed_order(9999),
+            "Should return BadCustomer for an order ID that isn't in the database"
+        )
+
+        self.assertEqual(
+            BadCustomer(),
+            Solution.get_customer_that_placed_order(-5),
+            "Should return BadCustomer for illegal negative order ID"
+        )
 
 # *** DO NOT RUN EACH TEST MANUALLY ***
 if __name__ == "__main__":

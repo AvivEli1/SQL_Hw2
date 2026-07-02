@@ -56,10 +56,18 @@ def create_tables() -> None:
                                 ); \
                                 """
 
+        query_view_order_customers = """
+                                     CREATE VIEW vw_OrderCustomers AS
+                                     SELECT co.order_id, c.cust_id, c.full_name, c.age, c.phone
+                                     FROM CustomerOrders co
+                                              INNER JOIN Customers c ON co.customer_id = c.cust_id;
+                                     """
+
         conn.execute(query_customers)
         conn.execute(query_orders)
         conn.execute(query_dishes)
         conn.execute(query_customer_orders)
+        conn.execute(query_view_order_customers)
 
     except Exception as e:
         print(e)
@@ -79,6 +87,7 @@ def drop_tables() -> None:
         conn = Connector.DBConnector()
 
         query = (
+            "DROP VIEW IF EXISTS vw_OrderCustomers CASCADE;"
             "DROP TABLE IF EXISTS Customers, Orders, Dishes, CustomerOrders CASCADE;"
         )
         conn.execute(query)
@@ -484,8 +493,35 @@ def customer_placed_order(customer_id: int, order_id: int) -> ReturnValue:
 
 
 def get_customer_that_placed_order(order_id: int) -> Customer:
-    # TODO: implement
-    pass
+    conn = None
+    customer = BadCustomer()
+
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL("SELECT * FROM vw_OrderCustomers WHERE order_id={id}").format(
+            id=sql.Literal(order_id)
+        )
+
+        rows_effected, result = conn.execute(query)
+
+        if rows_effected > 0:
+            row = result[0]
+            customer = Customer(
+                cust_id=row["cust_id"],
+                full_name=row["full_name"],
+                age=row["age"],
+                phone=row["phone"],
+            )
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+    except Exception as e:
+        print(e)
+    finally:
+        if conn is not None:
+            conn.close()
+        return customer
 
 
 def order_contains_dish(order_id: int, dish_id: int, amount: int) -> ReturnValue:
