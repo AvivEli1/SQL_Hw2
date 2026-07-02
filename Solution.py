@@ -693,8 +693,32 @@ def customer_rated_dish(cust_id: int, dish_id: int, rating: int) -> ReturnValue:
 
 
 def customer_deleted_rating_on_dish(cust_id: int, dish_id: int) -> ReturnValue:
-    # TODO: implement
-    pass
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL(
+            "DELETE FROM DishRatings WHERE cust_id = {c_id} AND dish_id = {d_id}"
+        ).format(c_id=sql.Literal(cust_id), d_id=sql.Literal(dish_id))
+
+        rows_effected, _ = conn.execute(query)
+
+        if rows_effected > 0:
+            return ReturnValue.OK
+        else:
+            return ReturnValue.NOT_EXISTS
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    except Exception as e:
+        print(e)
+        return ReturnValue.ERROR
+
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_all_customer_ratings(cust_id: int) -> List[Tuple[int, int]]:

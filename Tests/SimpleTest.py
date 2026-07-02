@@ -959,6 +959,60 @@ class Test(AbstractTest):
             "Should return NOT_EXISTS for an illegal negative customer_id"
         )
 
+    def test_customer_deleted_rating_on_dish_edge_cases(self) -> None:
+        # --- SETUP: Create Customer, Dishes, and Ratings ---
+        c_deleter = Customer(6000, "Change Mind", 30, "0504443333")
+        Solution.add_customer(c_deleter)
+
+        d_salad = Dish(6001, "Salad", 25.0, True)
+        d_soup = Dish(6002, "Soup", 20.0, True)
+        Solution.add_dish(d_salad)
+        Solution.add_dish(d_soup)
+
+        # Customer rates the salad
+        Solution.customer_rated_dish(6000, 6001, 4)
+
+        # --- 1. SUCCESSFUL DELETION (Happy Path) ---
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.customer_deleted_rating_on_dish(6000, 6001),
+            "Should return OK when successfully deleting an existing rating"
+        )
+
+        # --- 2. DOUBLE DELETION (Rating no longer exists) ---
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.customer_deleted_rating_on_dish(6000, 6001),
+            "Should return NOT_EXISTS if trying to delete a rating that was already removed"
+        )
+
+        # --- 3. NOT EXISTS: NEVER RATED IN THE FIRST PLACE ---
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.customer_deleted_rating_on_dish(6000, 6002),
+            "Should return NOT_EXISTS if the customer never rated this dish"
+        )
+
+        # --- 4. NOT EXISTS: MISSING IDS ---
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.customer_deleted_rating_on_dish(9999, 6001),
+            "Should return NOT_EXISTS for non-existent customer_id"
+        )
+
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.customer_deleted_rating_on_dish(6000, 9999),
+            "Should return NOT_EXISTS for non-existent dish_id"
+        )
+
+        # --- 5. NOT EXISTS: ILLEGAL IDS ---
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.customer_deleted_rating_on_dish(-5, 6001),
+            "Should return NOT_EXISTS for illegal negative customer_id"
+        )
+
 # *** DO NOT RUN EACH TEST MANUALLY ***
 if __name__ == "__main__":
     unittest.main(verbosity=2, exit=False)
