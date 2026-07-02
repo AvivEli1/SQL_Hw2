@@ -3,7 +3,7 @@ import Solution as Solution
 from Utility.ReturnValue import ReturnValue
 from Tests.AbstractTest import AbstractTest
 from Business.Customer import Customer, BadCustomer
-from Business.Order import Order
+from Business.Order import Order, BadOrder
 from datetime import datetime
 
 """
@@ -304,6 +304,96 @@ class Test(AbstractTest):
             "Date cannot be None",
         )
 
+    def test_get_order_edge_cases(self) -> None:
+        # --- 1. GET EXISTING ORDER (Happy Path) ---
+        # Create and add a standard order
+        dt_valid = datetime(2023, 11, 1, 14, 0, 0)
+        o_valid = Order(200, dt_valid, 15.0, "Technion Campus", 10.0)
+        Solution.add_order(o_valid)
+
+        # Fetch the order we just added
+        res_order = Solution.get_order(200)
+
+        self.assertEqual(
+            o_valid, res_order, "Should return the exact matched order object"
+        )
+
+        # --- 2. GET NON-EXISTENT ORDER ---
+        # ID 9999 hasn't been added to the database
+        res_missing = Solution.get_order(9999)
+        self.assertEqual(
+            BadOrder(),
+            res_missing,
+            "Should return BadOrder when order ID is not found in DB",
+        )
+
+        # --- 3. GET WITH INVALID ID BOUNDARIES ---
+        # The schema strictly requires order_id > 0
+        res_zero = Solution.get_order(0)
+        self.assertEqual(BadOrder(), res_zero, "Should return BadOrder for ID 0")
+
+        res_negative = Solution.get_order(-50)
+        self.assertEqual(
+            BadOrder(), res_negative, "Should return BadOrder for negative ID"
+        )
+
+    def test_delete_order_edge_cases(self) -> None:
+        # --- 1. SUCCESSFUL DELETION (Happy Path) ---
+        o_to_delete = Order(300, datetime(2023, 12, 1, 10, 0, 0), 12.0, "Delete St, Haifa", 5.0)
+        Solution.add_order(o_to_delete)
+
+        # Delete the order
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.delete_order(300),
+            "Should return OK when an existing order is deleted"
+        )
+
+        # Verify it is actually gone using your get_order function
+        self.assertEqual(
+            BadOrder(),
+            Solution.get_order(300),
+            "Deleted order should no longer be retrievable (should return BadOrder)"
+        )
+
+        # --- 2. DELETING NON-EXISTENT ORDER ---
+        # ID 9999 was never added
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.delete_order(9999),
+            "Should return NOT_EXISTS for an ID that isn't in the database"
+        )
+
+        # --- 3. ILLEGAL IDs ---
+        # 0 and negative numbers are illegal, so they definitely don't exist
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.delete_order(0),
+            "Should return NOT_EXISTS for ID 0"
+        )
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.delete_order(-20),
+            "Should return NOT_EXISTS for negative ID"
+        )
+
+        # --- 4. DOUBLE DELETE ---
+        o_double_delete = Order(301, datetime(2023, 12, 1, 10, 0, 0), 12.0, "Delete St, Haifa", 5.0)
+        Solution.add_order(o_double_delete)
+
+        # First delete works
+        self.assertEqual(
+            ReturnValue.OK,
+            Solution.delete_order(301),
+            "First deletion should succeed"
+        )
+
+        # Second delete should fail because it is already gone
+        self.assertEqual(
+            ReturnValue.NOT_EXISTS,
+            Solution.delete_order(301),
+            "Deleting the same order twice should return NOT_EXISTS the second time"
+        )
 
 # *** DO NOT RUN EACH TEST MANUALLY ***
 if __name__ == "__main__":

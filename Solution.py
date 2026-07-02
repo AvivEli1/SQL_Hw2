@@ -135,11 +135,9 @@ def get_customer(customer_id: int) -> Customer:
             id=sql.Literal(customer_id)
         )
 
-        # Execute the query and unpack the rows affected and the ResultSet
         rows_effected, result = conn.execute(query)
 
-        # Check if the result set contains any rows
-        if result.size() > 0:
+        if rows_effected > 0:
             row = result[0]
 
             customer = Customer(
@@ -169,7 +167,6 @@ def get_customer(customer_id: int) -> Customer:
 
 def delete_customer(customer_id: int) -> ReturnValue:
     conn = None
-    result = ReturnValue.ERROR
 
     try:
         conn = Connector.DBConnector()
@@ -178,31 +175,26 @@ def delete_customer(customer_id: int) -> ReturnValue:
             id=sql.Literal(customer_id)
         )
 
-        # Execute the query and capture how many rows were deleted
         rows_effected, _ = conn.execute(query)
 
-        # If rows_effected is > 0, the customer existed and was deleted
         if rows_effected > 0:
-            result = ReturnValue.OK
+            return ReturnValue.OK
         else:
-            # If 0 rows were affected, the ID either doesn't exist or is illegal (like -5)
-            result = ReturnValue.NOT_EXISTS
+            return ReturnValue.NOT_EXISTS
 
     except DatabaseException.ConnectionInvalid as e:
         print(e)
-        result = ReturnValue.ERROR
+        return ReturnValue.ERROR
     except Exception as e:
         print(e)
-        result = ReturnValue.ERROR
+        return ReturnValue.ERROR
     finally:
         if conn is not None:
             conn.close()
-        return result
 
 
 def add_order(order: Order) -> ReturnValue:
     conn = None
-    result = ReturnValue.ERROR
 
     try:
         conn = Connector.DBConnector()
@@ -219,36 +211,87 @@ def add_order(order: Order) -> ReturnValue:
         )
 
         conn.execute(query)
-        result = ReturnValue.OK
+        return ReturnValue.OK
 
     except DatabaseException.UNIQUE_VIOLATION:
-        result = ReturnValue.ALREADY_EXISTS
+        return ReturnValue.ALREADY_EXISTS
 
     except (DatabaseException.NOT_NULL_VIOLATION, DatabaseException.CHECK_VIOLATION):
-        result = ReturnValue.BAD_PARAMS
+        return ReturnValue.BAD_PARAMS
 
     except DatabaseException.ConnectionInvalid as e:
         print(e)
-        result = ReturnValue.ERROR
+        return ReturnValue.ERROR
 
     except Exception as e:
         print(e)
-        result = ReturnValue.ERROR
+        return ReturnValue.ERROR
 
     finally:
         if conn is not None:
             conn.close()
-        return result
 
 
 def get_order(order_id: int) -> Order:
-    # TODO: implement
-    pass
+    conn = None
+    order = BadOrder()
+
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL("SELECT * FROM Orders WHERE order_id={id}").format(
+            id=sql.Literal(order_id)
+        )
+
+        rows_effected, result = conn.execute(query)
+
+        if rows_effected > 0:
+            row = result[0]
+
+            order = Order(
+                order_id=row["order_id"],
+                date=row["date"],
+                delivery_fee=row["delivery_fee"],
+                delivery_address=row["delivery_address"],
+                tip=row["tip"],
+            )
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+    except Exception as e:
+        print(e)
+    finally:
+        if conn is not None:
+            conn.close()
+        return order
 
 
 def delete_order(order_id: int) -> ReturnValue:
-    # TODO: implement
-    pass
+    conn = None
+
+    try:
+        conn = Connector.DBConnector()
+
+        query = sql.SQL("DELETE FROM Orders WHERE order_id={id}").format(
+            id=sql.Literal(order_id)
+        )
+
+        rows_effected, _ = conn.execute(query)
+
+        if rows_effected > 0:
+            return ReturnValue.OK
+        else:
+            return ReturnValue.NOT_EXISTS
+
+    except DatabaseException.ConnectionInvalid as e:
+        print(e)
+        return ReturnValue.ERROR
+    except Exception as e:
+        print(e)
+        return ReturnValue.ERROR
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def add_dish(dish: Dish) -> ReturnValue:
