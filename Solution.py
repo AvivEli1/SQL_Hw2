@@ -50,6 +50,7 @@ def create_tables() -> None:
     try:
         conn = Connector.DBConnector()
 
+        # 1. Base Tables (Parents)
         query_customers = """
                           CREATE TABLE Customers
                           (
@@ -57,9 +58,7 @@ def create_tables() -> None:
                               full_name TEXT NOT NULL,
                               age INTEGER NOT NULL CHECK (age >= 18 AND age <= 120),
                               phone TEXT NOT NULL CHECK (LENGTH(phone) = 10)
-                          );
-                          """
-
+                          );"""
         query_orders = """
                        CREATE TABLE Orders
                        (
@@ -68,8 +67,7 @@ def create_tables() -> None:
                            delivery_fee DECIMAL NOT NULL CHECK (delivery_fee >= 0),
                            delivery_address TEXT NOT NULL CHECK (LENGTH(delivery_address) >= 5),
                            tip DECIMAL NOT NULL CHECK (tip >= 0)
-                       );
-                       """
+                       );"""
         query_dishes = """
                        CREATE TABLE Dishes
                        (
@@ -77,22 +75,15 @@ def create_tables() -> None:
                            name TEXT NOT NULL CHECK (LENGTH(name) >= 4),
                            price DECIMAL NOT NULL CHECK (price > 0),
                            is_active BOOLEAN NOT NULL
-                       );
-                       """
+                       );"""
+
+        # 2. Linking Tables (Children)
         query_customer_orders = """
                                 CREATE TABLE CustomerOrders
                                 (
                                     customer_id INTEGER NOT NULL REFERENCES Customers (cust_id) ON DELETE CASCADE,
                                     order_id INTEGER PRIMARY KEY REFERENCES Orders (order_id) ON DELETE CASCADE
-                                );
-                                """
-
-        query_view_order_customers = """
-                                     CREATE VIEW vw_OrderCustomers AS
-                                     SELECT co.order_id, c.cust_id, c.full_name, c.age, c.phone
-                                     FROM CustomerOrders co
-                                              INNER JOIN Customers c ON co.customer_id = c.cust_id;
-                                     """
+                                );"""
         query_order_dishes = """
                              CREATE TABLE OrderDishes
                              (
@@ -101,8 +92,7 @@ def create_tables() -> None:
                                  amount INTEGER NOT NULL CHECK (amount > 0),
                                  price DECIMAL NOT NULL CHECK (price > 0),
                                  PRIMARY KEY (order_id, dish_id)
-                             );
-                             """
+                             );"""
         query_dish_ratings = """
                              CREATE TABLE DishRatings
                              (
@@ -110,16 +100,27 @@ def create_tables() -> None:
                                  dish_id INTEGER NOT NULL REFERENCES Dishes (dish_id) ON DELETE CASCADE,
                                  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
                                  PRIMARY KEY (cust_id, dish_id)
-                             );
-                             """
+                             );"""
+        # 3.Views
+        query_view_order_customers = """
+                                     CREATE VIEW vw_OrderCustomers AS
+                                     SELECT co.order_id, c.cust_id, c.full_name, c.age, c.phone
+                                     FROM CustomerOrders co
+                                              INNER JOIN Customers c ON co.customer_id = c.cust_id;
+                                     """
 
+        # 1. Base Tables (Parents)
         conn.execute(query_customers)
         conn.execute(query_orders)
         conn.execute(query_dishes)
+
+        # 2. Linking Tables (Children)
         conn.execute(query_customer_orders)
-        conn.execute(query_view_order_customers)
         conn.execute(query_order_dishes)
         conn.execute(query_dish_ratings)
+
+        # 3.Views
+        conn.execute(query_view_order_customers)
 
     except Exception as e:
         print(e)
@@ -129,8 +130,31 @@ def create_tables() -> None:
 
 
 def clear_tables() -> None:
-    # TODO: implement
-    pass
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+
+        query = """
+                DELETE
+                FROM DishRatings;
+                DELETE
+                FROM OrderDishes;
+                DELETE
+                FROM CustomerOrders;
+                DELETE
+                FROM Dishes;
+                DELETE
+                FROM Orders;
+                DELETE
+                FROM Customers;
+                """
+        conn.execute(query)
+
+    except Exception as e:
+        print(e)
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def drop_tables() -> None:
@@ -138,15 +162,16 @@ def drop_tables() -> None:
     try:
         conn = Connector.DBConnector()
 
-        query = (
-            "DROP VIEW IF EXISTS vw_OrderCustomers CASCADE;"
-            "DROP TABLE IF EXISTS Customers, Orders, Dishes, CustomerOrders, OrderDishes, DishRatings CASCADE;"
-        )
+        query = """
+                DROP VIEW IF EXISTS vw_OrderCustomers CASCADE;
+
+                DROP TABLE IF EXISTS DishRatings, OrderDishes, CustomerOrders CASCADE;
+                DROP TABLE IF EXISTS Dishes, Orders, Customers CASCADE; \
+                """
         conn.execute(query)
 
     except Exception as e:
         print(e)
-
     finally:
         if conn is not None:
             conn.close()
