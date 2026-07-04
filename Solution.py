@@ -109,6 +109,14 @@ def create_tables() -> None:
                                               INNER JOIN Customers c ON co.customer_id = c.cust_id;
                                      """
 
+        query_view_order_totals = """
+                                  CREATE VIEW vw_OrderTotals AS
+                                  SELECT o.order_id, o.delivery_fee + o.tip + COALESCE(SUM(od.amount * od.price), 0) AS total_price
+                                  FROM Orders o
+                                  LEFT JOIN OrderDishes od ON o.order_id = od.order_id
+                                  GROUP BY o.order_id, o.delivery_fee, o.tip;
+                                  """
+
         # 1. Base Tables (Parents)
         conn.execute(query_customers)
         conn.execute(query_orders)
@@ -121,6 +129,7 @@ def create_tables() -> None:
 
         # 3.Views
         conn.execute(query_view_order_customers)
+        conn.execute(query_view_order_totals)
 
     except Exception as e:
         print(e)
@@ -164,6 +173,7 @@ def drop_tables() -> None:
 
         query = """
                 DROP VIEW IF EXISTS vw_OrderCustomers CASCADE;
+                DROP VIEW IF EXISTS vw_OrderTotals CASCADE;
 
                 DROP TABLE IF EXISTS DishRatings, OrderDishes, CustomerOrders CASCADE;
                 DROP TABLE IF EXISTS Dishes, Orders, Customers CASCADE; \
@@ -776,23 +786,125 @@ def get_all_customer_ratings(cust_id: int) -> List[Tuple[int, int]]:
 
 
 def get_order_total_price(order_id: int) -> float:
-    # TODO: implement
-    pass
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+        query = sql.SQL("""
+            SELECT total_price
+            FROM vw_OrderTotals
+            WHERE order_id = {order_id}
+        """).format(order_id=sql.Literal(order_id))
+
+        rows, result = conn.execute(query)
+        return float(result[0]["total_price"])
+    except Exception as e:
+        print(e)
+        return 0.0
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_customers_spent_max_avg_amount_money() -> List[int]:
-    # TODO: implement
-    pass
+    conn = None
+    customers = []
+    try:
+        conn = Connector.DBConnector()
+        query = """
+                SELECT A.cust_id
+                FROM (
+                    SELECT co.customer_id AS cust_id,
+                           AVG(v.total_price) AS avg_total
+                    FROM CustomerOrders co
+                    JOIN vw_OrderTotals v ON co.order_id = v.order_id
+                    GROUP BY co.customer_id
+                ) A
+                WHERE A.avg_total = (
+                    SELECT MAX(B.avg_total)
+                    FROM (
+                        SELECT co.customer_id AS cust_id,
+                               AVG(v.total_price) AS avg_total
+                        FROM CustomerOrders co
+                        JOIN vw_OrderTotals v ON co.order_id = v.order_id
+                        GROUP BY co.customer_id
+                    ) B
+                )
+                ORDER BY A.cust_id ASC
+            """
+
+        rows, result = conn.execute(query)
+        for row in result:
+            customers.append(row["cust_id"])
+        return customers
+    except Exception as e:
+        print(e)
+        return []
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def get_most_profitable_dish_in_period(start: datetime, end: datetime) -> Dish:
-    # TODO: implement
-    pass
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+        query = sql.SQL("""
+            SELECT d.dish_id, d.name, d.price, d.is_active
+            FROM Dishes d
+            JOIN (
+                SELECT od.dish_id, SUM(od.amount * od.price) AS revenue
+                FROM Orders o JOIN OrderDishes od ON o.order_id = od.order_id
+                WHERE o.date >= {start_date} AND o.date <= {end_date}
+                GROUP BY od.dish_id
+                ORDER BY revenue DESC, od.dish_id ASC
+                LIMIT 1
+            ) best ON d.dish_id = best.dish_id
+        """).format(
+            start_date=sql.Literal(start),
+            end_date=sql.Literal(end),
+        )
+
+        rows, result = conn.execute(query)
+        if rows == 0:
+            return BadDish()
+        return _map_row_to_dish(result[0])
+    except Exception as e:
+        print(e)
+        return BadDish()
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def did_customer_order_top_rated_dishes(cust_id: int) -> bool:
-    # TODO: implement
-    pass
+    conn = None
+    try:
+        conn = Connector.DBConnector()
+        query = sql.SQL("""
+            SELECT EXISTS (
+                SELECT *
+                FROM CustomerOrders co
+                JOIN OrderDishes od ON co.order_id = od.order_id
+                JOIN (
+                    SELECT d.dish_id
+                    FROM Dishes d
+                    LEFT JOIN DishRatings dr ON d.dish_id = dr.dish_id
+                    GROUP BY d.dish_id
+                    ORDER BY COALESCE(AVG(dr.rating), 3) DESC, d.dish_id ASC
+                    LIMIT 5
+                ) top_dishes ON od.dish_id = top_dishes.dish_id
+                WHERE co.customer_id = {cust_id}
+            ) AS did_order
+        """).format(cust_id=sql.Literal(cust_id))
+
+        rows, result = conn.execute(query)
+        return bool(result[0]["did_order"])
+    except Exception as e:
+        print(e)
+        return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 # ---------------------------------- ADVANCED API: ----------------------------------
